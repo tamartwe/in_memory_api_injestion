@@ -7,9 +7,6 @@ import { IdentityEvent } from "../models/event.model";
 import { seedEvents, validEvent } from "./fixtures/event.fixtures";
 
 // ─── Test setup ──────────────────────────────────────────────────────────────
-// A single shared repository instance lets us seed data before each test
-// and wipe it clean afterwards — mirrors how you'd use DB transactions in
-// a Postgres-backed test suite.
 let app: Application;
 let repository: IEventRepository;
 
@@ -18,16 +15,7 @@ beforeAll(() => {
   app = createApp({ eventRepository: repository });
 });
 
-beforeEach(async () => {
-  // Seed three baseline events so every test starts with a known state
-  await request(app)
-    .post("/events")
-    .send({ events: seedEvents })
-    .expect(201);
-});
-
 afterEach(async () => {
-  // Wipe the store — equivalent to rolling back a DB transaction in tests
   await repository.reset();
 });
 
@@ -35,8 +23,17 @@ afterEach(async () => {
 const post = (body: object | string) =>
   request(app).post("/events").send(body);
 
+const seedDataset = async () => {
+  await request(app)
+    .post("/events")
+    .send({ events: seedEvents })
+    .expect(201);
+};
+
 // ─── Happy path ──────────────────────────────────────────────────────────────
 describe("POST /events — success", () => {
+  beforeEach(seedDataset);
+
   it("ingests a single valid event and returns 201 with the saved event", async () => {
     const res = await post({ events: [validEvent()] }).expect(201);
 
