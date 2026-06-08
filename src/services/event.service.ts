@@ -54,7 +54,7 @@ export class EventService {
     const pagination: Pagination = { page: query.page, limit: query.limit };
 
     const { data, total } = await this.repository.findMany(filters, pagination);
-    const totalPages = Math.ceil(total / pagination.limit);
+    const totalPages = Math.max(1, Math.ceil(total / pagination.limit));
 
     log.info({ total, returned: data.length, page: pagination.page, limit: pagination.limit }, "Events query complete");
 

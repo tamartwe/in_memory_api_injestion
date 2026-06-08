@@ -142,7 +142,7 @@ describe("GET /events — filtering", () => {
 
     expect(res.body.data).toHaveLength(0);
     expect(res.body.pagination.total).toBe(0);
-    expect(res.body.pagination.totalPages).toBe(0);
+    expect(res.body.pagination.totalPages).toBe(1); // always at least 1 — page 1 exists, it's just empty
   });
 });
 
