@@ -2,12 +2,13 @@ import request from "supertest";
 import { Application } from "express";
 import { createApp } from "../app";
 import { InMemoryEventRepository } from "../repositories/in-memory/event.in-memory.repository";
+import { IEventRepository } from "../repositories/interfaces/event.repository.interface";
 import { IdentityEvent } from "../models/event.model";
 import { PaginatedEvents } from "../services/event.service";
 
 // ─── Test setup ──────────────────────────────────────────────────────────────
 let app: Application;
-let repository: InMemoryEventRepository;
+let repository: IEventRepository;
 
 beforeAll(() => {
   repository = new InMemoryEventRepository();

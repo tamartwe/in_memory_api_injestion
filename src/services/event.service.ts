@@ -2,6 +2,9 @@ import { randomUUID } from "crypto";
 import { AppSummary, IdentityEvent } from "../models/event.model";
 import { IEventRepository } from "../repositories/interfaces/event.repository.interface";
 import { EventFilters, GetEventsQuery, IdentityEventInput, Pagination } from "../schemas/event.schema";
+import logger from "../logger";
+
+const log = logger.child({ module: "EventService" });
 
 export interface PaginatedEvents {
   data: IdentityEvent[];
@@ -35,7 +38,9 @@ export class EventService {
       receivedAt: now,
     }));
 
-    return this.repository.saveMany(events);
+    const saved = await this.repository.saveMany(events);
+    log.info({ batchSize: saved.length }, "Batch ingested successfully");
+    return saved;
   }
 
   async queryEvents(query: GetEventsQuery): Promise<PaginatedEvents> {
@@ -51,6 +56,8 @@ export class EventService {
     const { data, total } = await this.repository.findMany(filters, pagination);
     const totalPages = Math.ceil(total / pagination.limit);
 
+    log.info({ total, returned: data.length, page: pagination.page, limit: pagination.limit }, "Events query complete");
+
     return {
       data,
       pagination: {
@@ -65,6 +72,10 @@ export class EventService {
   }
 
   async getAppSummary(appId: string): Promise<AppSummary | null> {
-    return this.repository.getAppSummary(appId);
+    const summary = await this.repository.getAppSummary(appId);
+    if (summary) {
+      log.info({ appId, totalEvents: summary.totalEvents, uniqueUsers: summary.uniqueUsers }, "App summary retrieved");
+    }
+    return summary;
   }
 }

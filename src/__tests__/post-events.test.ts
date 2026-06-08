@@ -2,6 +2,7 @@ import request from "supertest";
 import { Application } from "express";
 import { createApp } from "../app";
 import { InMemoryEventRepository } from "../repositories/in-memory/event.in-memory.repository";
+import { IEventRepository } from "../repositories/interfaces/event.repository.interface";
 import { IdentityEvent } from "../models/event.model";
 import { seedEvents, validEvent } from "./fixtures/event.fixtures";
 
@@ -10,7 +11,7 @@ import { seedEvents, validEvent } from "./fixtures/event.fixtures";
 // and wipe it clean afterwards — mirrors how you'd use DB transactions in
 // a Postgres-backed test suite.
 let app: Application;
-let repository: InMemoryEventRepository;
+let repository: IEventRepository;
 
 beforeAll(() => {
   repository = new InMemoryEventRepository();
@@ -86,11 +87,13 @@ describe("POST /events — success", () => {
   });
 
   it("persists events independently from the seed data", async () => {
-    const storeBeforeInsert = repository.getStore().length; // 3 from beforeEach
+    const before = await request(app).get("/events").expect(200);
+    const totalBefore: number = before.body.pagination.total; // 3 from beforeEach
 
     await post({ events: [validEvent({ userId: "new-user" })] }).expect(201);
 
-    expect(repository.getStore().length).toBe(storeBeforeInsert + 1);
+    const after = await request(app).get("/events").expect(200);
+    expect(after.body.pagination.total).toBe(totalBefore + 1);
   });
 
   it("assigns a unique id to every event in the batch", async () => {

@@ -1,7 +1,10 @@
-import { Request, Response } from "express";
+import { NextFunction, Request, Response } from "express";
 import { ZodError } from "zod";
 import { EventService } from "../services/event.service";
 import { BatchIngestRequestSchema, GetEventsQuerySchema } from "../schemas/event.schema";
+import logger from "../logger";
+
+const log = logger.child({ module: "EventController" });
 
 export class EventController {
   constructor(private readonly service: EventService) {}
@@ -10,53 +13,82 @@ export class EventController {
    * POST /events
    * Accepts a batch of identity events, validates, and ingests them.
    */
-  ingestBatch = async (req: Request, res: Response): Promise<void> => {
-    const parseResult = BatchIngestRequestSchema.safeParse(req.body);
+  ingestBatch = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const parseResult = BatchIngestRequestSchema.safeParse(req.body);
 
-    if (!parseResult.success) {
-      res.status(400).json(formatValidationError(parseResult.error));
-      return;
+      if (!parseResult.success) {
+        log.info({ validationErrors: parseResult.error.issues }, "POST /events — validation failed");
+        res.status(400).json(formatValidationError(parseResult.error));
+        return;
+      }
+
+      const { events } = parseResult.data;
+      log.info({ batchSize: events.length }, "POST /events — ingesting batch");
+
+      const saved = await this.service.ingestBatch(events);
+
+      res.status(201).json({
+        ingested: saved.length,
+        events: saved,
+      });
+    } catch (err) {
+      next(err);
     }
-
-    const saved = await this.service.ingestBatch(parseResult.data.events);
-
-    res.status(201).json({
-      ingested: saved.length,
-      events: saved,
-    });
   };
 
   /**
    * GET /events
    * Returns a paginated, filtered list of identity events.
    */
-  getEvents = async (req: Request, res: Response): Promise<void> => {
-    const parseResult = GetEventsQuerySchema.safeParse(req.query);
+  getEvents = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const parseResult = GetEventsQuerySchema.safeParse(req.query);
 
-    if (!parseResult.success) {
-      res.status(400).json(formatValidationError(parseResult.error));
-      return;
+      if (!parseResult.success) {
+        log.info({ validationErrors: parseResult.error.issues }, "GET /events — validation failed");
+        res.status(400).json(formatValidationError(parseResult.error));
+        return;
+      }
+
+      const query = parseResult.data;
+      log.info(
+        {
+          filters: { appId: query.appId, userId: query.userId, action: query.action, from: query.from, to: query.to },
+          pagination: { page: query.page, limit: query.limit },
+        },
+        "GET /events — querying events"
+      );
+
+      const result = await this.service.queryEvents(query);
+      res.status(200).json(result);
+    } catch (err) {
+      next(err);
     }
-
-    const result = await this.service.queryEvents(parseResult.data);
-    res.status(200).json(result);
   };
 
   /**
    * GET /apps/:appId/summary
    * Returns aggregate stats for a single app.
    */
-  getAppSummary = async (req: Request, res: Response): Promise<void> => {
-    const appId = req.params["appId"] as string;
+  getAppSummary = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const appId = req.params["appId"] as string;
 
-    const summary = await this.service.getAppSummary(appId);
+      log.info({ appId }, "GET /apps/:appId/summary — fetching summary");
 
-    if (!summary) {
-      res.status(404).json({ error: `No events found for app "${appId}"` });
-      return;
+      const summary = await this.service.getAppSummary(appId);
+
+      if (!summary) {
+        log.info({ appId }, "GET /apps/:appId/summary — app not found");
+        res.status(404).json({ error: `No events found for app "${appId}"` });
+        return;
+      }
+
+      res.status(200).json(summary);
+    } catch (err) {
+      next(err);
     }
-
-    res.status(200).json(summary);
   };
 }
 

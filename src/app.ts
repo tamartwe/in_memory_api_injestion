@@ -1,4 +1,6 @@
 import express, { Application, NextFunction, Request, Response } from "express";
+import pinoHttp from "pino-http";
+import logger from "./logger";
 import { InMemoryEventRepository } from "./repositories/in-memory/event.in-memory.repository";
 import { IEventRepository } from "./repositories/interfaces/event.repository.interface";
 import { EventService } from "./services/event.service";
@@ -11,6 +13,9 @@ export interface AppDependencies {
 
 export function createApp(deps: AppDependencies = {}): Application {
   const app = express();
+
+  // HTTP request/response logging — logs method, url, status, responseTime automatically
+  app.use(pinoHttp({ logger }));
 
   app.use(express.json());
 
@@ -29,9 +34,9 @@ export function createApp(deps: AppDependencies = {}): Application {
     res.status(404).json({ error: "Not found" });
   });
 
-  // Global error handler
-  app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
-    console.error(err);
+  // Global error handler — catches any unhandled errors thrown by route handlers
+  app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
+    req.log.error({ err }, "Unhandled error reached global error handler");
     res.status(500).json({ error: "Internal server error" });
   });
 
